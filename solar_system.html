@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Solar System Simulation</title>
+<style>
+    html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: black;
+        color: #fff;
+        font-family: Arial, sans-serif;
+    }
+    #controls {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0,0,0,0.5);
+        padding: 5px 10px;
+        border-radius: 4px;
+    }
+    #info {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.7);
+        padding: 10px;
+        border-radius: 4px;
+        display: none;
+    }
+    canvas {
+        display: block;
+    }
+</style>
+</head>
+<body>
+<div id="controls">
+    <label><input type="checkbox" id="orbitToggle" checked> Show Orbits</label>
+</div>
+<div id="info"></div>
+<canvas id="space"></canvas>
+<script>
+const canvas = document.getElementById('space');
+const ctx = canvas.getContext('2d');
+let width = canvas.width = window.innerWidth;
+let height = canvas.height = window.innerHeight;
+
+window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+});
+
+const stars = [];
+for (let i=0; i<300; i++) {
+    stars.push({x: Math.random()*width, y: Math.random()*height, r: Math.random()*2});
+}
+
+const bodies = [
+    {name: 'Mercury', color: '#bbb', r: 4, dist: 40, speed: 0.015, angle: Math.random()*Math.PI*2},
+    {name: 'Venus', color: '#ddd', r: 6, dist: 70, speed: 0.012, angle: Math.random()*Math.PI*2},
+    {name: 'Earth', color: '#06f', r: 6.5, dist: 100, speed: 0.01, angle: Math.random()*Math.PI*2, moons:[{name:'Moon',color:'#ccc', r:2, dist:10, speed:0.05, angle:Math.random()*Math.PI*2}]},
+    {name: 'Mars', color: '#f00', r: 5, dist: 150, speed: 0.008, angle: Math.random()*Math.PI*2},
+    {name: 'Jupiter', color: '#ffb347', r: 10, dist: 520, speed: 0.004, angle: Math.random()*Math.PI*2, moons:[
+        {name:'Io',color:'#fff2a3', r:2, dist:15, speed:0.06, angle:Math.random()*Math.PI*2},
+        {name:'Europa',color:'#f5e6b6', r:2, dist:20, speed:0.05, angle:Math.random()*Math.PI*2},
+        {name:'Ganymede',color:'#d9d9d9', r:2.5, dist:25, speed:0.04, angle:Math.random()*Math.PI*2},
+        {name:'Callisto',color:'#c0c0c0', r:2.5, dist:30, speed:0.03, angle:Math.random()*Math.PI*2},
+    ]},
+    {name: 'Saturn', color: '#e2c799', r: 9, dist: 950, speed: 0.003, angle: Math.random()*Math.PI*2, moons:[
+        {name:'Titan',color:'#d2b48c', r:3, dist:20, speed:0.04, angle:Math.random()*Math.PI*2}
+    ]},
+    {name: 'Uranus', color: '#7fffd4', r: 8, dist: 1900, speed: 0.002, angle: Math.random()*Math.PI*2},
+    {name: 'Neptune', color: '#4169e1', r: 8, dist: 3000, speed: 0.001, angle: Math.random()*Math.PI*2}
+];
+
+const asteroids = [];
+for (let i=0; i<200; i++) {
+    asteroids.push({dist: 250 + Math.random()*100, angle: Math.random()*Math.PI*2, speed:0.009+Math.random()*0.001});
+}
+
+let time = 0;
+let zoom = 1;
+let offsetX = width/2;
+let offsetY = height/2;
+let dragging = false;
+let lastX, lastY;
+
+canvas.addEventListener('mousedown', (e)=>{
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+});
+
+window.addEventListener('mousemove', (e)=>{
+    if(dragging){
+        offsetX += e.clientX - lastX;
+        offsetY += e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+    }
+});
+window.addEventListener('mouseup', ()=>dragging=false);
+window.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    zoom += e.deltaY*-0.001;
+    zoom = Math.min(Math.max(0.2, zoom), 5);
+});
+
+canvas.addEventListener('click', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left - offsetX)/zoom;
+    const y = (e.clientY - rect.top - offsetY)/zoom;
+    let found = null;
+    bodies.forEach(b => {
+        const bx = Math.cos(b.angle)*b.dist;
+        const by = Math.sin(b.angle)*b.dist;
+        if(Math.hypot(x-bx, y-by) < b.r+5) found = b;
+        if(b.moons){
+            b.moons.forEach(m => {
+                const mx = bx + Math.cos(m.angle)*m.dist;
+                const my = by + Math.sin(m.angle)*m.dist;
+                if(Math.hypot(x-mx, y-my) < m.r+3) found = m;
+            });
+        }
+    });
+    if(found){
+        const info = document.getElementById('info');
+        info.textContent = found.name;
+        info.style.display = 'block';
+        setTimeout(()=> info.style.display = 'none', 3000);
+    }
+});
+
+document.getElementById('orbitToggle').addEventListener('change',()=>{
+    showOrbits = document.getElementById('orbitToggle').checked;
+});
+
+let showOrbits = true;
+
+function draw(){
+    ctx.clearRect(0,0,width,height);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0,0,width,height);
+    // stars
+    ctx.fillStyle = '#fff';
+    stars.forEach(s=>{
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+        ctx.fill();
+    });
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(zoom, zoom);
+    const sunPulse = 20 + Math.sin(time*0.02)*2;
+    const sunGrad = ctx.createRadialGradient(0,0,0,0,0,sunPulse*2);
+    sunGrad.addColorStop(0,'#fffab2');
+    sunGrad.addColorStop(1,'#ff9900');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(0,0,sunPulse,0,Math.PI*2);
+    ctx.fill();
+
+    if(showOrbits){
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        bodies.forEach(b=>{
+            ctx.beginPath();
+            ctx.arc(0,0,b.dist,0,Math.PI*2);
+            ctx.stroke();
+            if(b.moons){
+                const bx = Math.cos(b.angle)*b.dist;
+                const by = Math.sin(b.angle)*b.dist;
+                b.moons.forEach(m=>{
+                    ctx.beginPath();
+                    ctx.arc(bx,by,m.dist,0,Math.PI*2);
+                    ctx.stroke();
+                });
+            }
+        });
+        asteroids.forEach(a=>{
+            ctx.beginPath();
+            ctx.arc(0,0,a.dist,0,Math.PI*2);
+            ctx.stroke();
+        });
+    }
+
+    // asteroids
+    ctx.fillStyle = '#888';
+    asteroids.forEach(a=>{
+        const x = Math.cos(a.angle)*a.dist;
+        const y = Math.sin(a.angle)*a.dist;
+        ctx.beginPath();
+        ctx.arc(x,y,1,0,Math.PI*2);
+        ctx.fill();
+        a.angle += a.speed;
+    });
+
+    bodies.forEach(b=>{
+        const bx = Math.cos(b.angle)*b.dist;
+        const by = Math.sin(b.angle)*b.dist;
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.arc(bx,by,b.r,0,Math.PI*2);
+        ctx.fill();
+        if(b.moons){
+            b.moons.forEach(m=>{
+                const mx = bx + Math.cos(m.angle)*m.dist;
+                const my = by + Math.sin(m.angle)*m.dist;
+                ctx.fillStyle = m.color;
+                ctx.beginPath();
+                ctx.arc(mx,my,m.r,0,Math.PI*2);
+                ctx.fill();
+                m.angle += m.speed;
+            });
+        }
+        b.angle += b.speed;
+    });
+
+    ctx.restore();
+    time++;
+    requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+</body>
+</html>
